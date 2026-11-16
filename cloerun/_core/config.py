@@ -210,6 +210,59 @@ def _auto_enable_derived_parameters(
     return {**auto_enabled, **derived_parameters}
 
 
+def _check_derived_parameters(
+    derived_parameters: dict[str, bool],
+    sampled_parameters: dict[str, Any],
+    TCM_params: dict[str, Any],
+) -> None:
+    """Check that the enabled bias relations do not clash with the sampled
+    parameters, the TCM parameters or each other.
+
+    A relation overwrites its output, so the output cannot be sampled
+    (flat or AM) or set by another relation. Relations are applied to the
+    sampled values, before the likelihood converts the TCM parameters to
+    the standard ones, so neither their inputs nor their output can be TCM
+    parameters.
+
+    Parameters
+    ----------
+    derived_parameters: dict[str, bool]
+        The resolved ``derived_parameters`` section.
+    sampled_parameters: dict[str, Any]
+        The resolved ``sampled_parameters`` section.
+    TCM_params: dict[str, Any]
+        The ``probe.TCM_params`` section (possibly empty).
+
+    Raises
+    ------
+    ValueError
+        If an enabled relation clashes with them.
+    """
+    set_by = {}
+    for name, enabled in derived_parameters.items():
+        relation = DERIVED_PARAMETERS.get(name, {})
+        if not enabled or "output" not in relation:
+            continue
+        output = relation["output"]
+        if output in set_by:
+            raise ValueError(
+                f"'derived_parameters' {set_by[output]} and {name} both set '{output}'"
+            )
+        set_by[output] = name
+        if output in sampled_parameters:
+            raise ValueError(
+                f"'{output}' is set by the derived parameter '{name}': remove it "
+                "from 'sampled_parameters'"
+            )
+        in_TCM = [p for p in [*relation["inputs"], output] if p in TCM_params]
+        if in_TCM:
+            raise ValueError(
+                f"The derived parameter '{name}' is applied before the TCM "
+                f"reparametrisation and cannot be used with {in_TCM} in "
+                "'probe.TCM_params'"
+            )
+
+
 @dataclass
 class DataConfig:
     """Container for data setup.
@@ -534,6 +587,9 @@ class RunConfig:
             )
         derived_parameters = _auto_enable_derived_parameters(
             raw.get("derived_parameters", {}), raw["fixed_parameters"], sampled_parameters
+        )
+        _check_derived_parameters(
+            derived_parameters, sampled_parameters, raw["probe"].get("TCM_params") or {}
         )
 
         return cls(

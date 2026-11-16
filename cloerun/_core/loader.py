@@ -29,15 +29,21 @@ CONSTRAINTS: dict[str, str] = {
     "negative_w0_wa_sum": "cloerun._core.constraints:w0_wa_negative",
 }
 
-DERIVED_PARAMETERS: dict[str, dict[str, str]] = {
+# "trigger": auto-enabled when this parameter is in the config.
+# "inputs", "output": parameters read and set by a bias relation, checked
+# against the sampled and TCM parameters by the config.
+DERIVED_PARAMETERS: dict[str, dict[str, Any]] = {
     "bG2_coevolution": {
         "path": "cloerun._core.derived_parameters:bG2_coevolution",
+        "inputs": ["b1"], "output": "bG2",
     },
     "bG2_excursion_set": {
         "path": "cloerun._core.derived_parameters:bG2_excursion_set",
+        "inputs": ["b1"], "output": "bG2",
     },
     "bGam3_coevolution": {
         "path": "cloerun._core.derived_parameters:bGam3_coevolution",
+        "inputs": ["b1", "bG2"], "output": "bGam3",
     },
     "H0_from_h": {
         "path": "cloerun._core.derived_parameters:H0_from_h", "trigger": "h",
