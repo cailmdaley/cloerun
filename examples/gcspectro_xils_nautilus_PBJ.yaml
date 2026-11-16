@@ -91,17 +91,16 @@ sampled_parameters:
     1.65: {dist: flat, min: 0.25, max: 4.0}
   b2:    {dist: flat, min: -5.0, max: 5.0}
   bG2:   {dist: flat, min: -4.0, max: 4.0}
-  bG3: {dist: norm, loc: 0.0, scale: 5.0}
-  c0:    {dist: norm, loc: 0.0, scale: 250.0}
-  c2:    {dist: norm, loc: 0.0, scale: 250.0}
-  c4:    {dist: norm, loc: 0.0, scale: 250.0}
-  ck4:  {dist: norm, loc: 0.0, scale: 500.0}
+  bG3: {dist: AM, loc: 0.0, scale: 5.0}
+  c0:    {dist: AM, loc: 0.0, scale: 250.0}
+  c2:    {dist: AM, loc: 0.0, scale: 250.0}
+  c4:    {dist: AM, loc: 0.0, scale: 250.0}
+  ck4:  {dist: AM, loc: 0.0, scale: 500.0}
 
 # Relations between parameters that are enforced during the run.
 derived_parameters:
   bG2_coevolution: false
   bG2_excursion_set: false
-  bGam3_coevolution: false
 
 # Additional constraints on sampled parameters that are enforced during the run.
 # Any sampled point failing an enabled check is rejected outright (as -inf) before
