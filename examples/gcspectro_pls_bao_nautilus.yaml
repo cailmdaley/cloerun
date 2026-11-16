@@ -95,7 +95,6 @@ sampled_parameters:
     1.4:  {dist: flat, min: 0.25, max: 4.0}
     1.65: {dist: flat, min: 0.25, max: 4.0}
   b2:    {dist: flat, min: -5.0, max: 5.0}
-  bG2:   {dist: flat, min: -4.0, max: 4.0}
   bGam3: {dist: AM, loc: 0.0, scale: 5.0}
   c0:    {dist: AM, loc: 0.0, scale: 250.0}
   c2:    {dist: AM, loc: 0.0, scale: 250.0}
