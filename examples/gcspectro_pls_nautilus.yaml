@@ -99,6 +99,19 @@ sampled_parameters:
   NP20:  {dist: AM, loc: 0.0, scale: 70.0}
   NP22:  {dist: AM, loc: 0.0, scale: 70.0}
 
+# Values of the sampled parameters used by `cloerun chain --test`; the prior
+# median is used for the ones left out. The cosmology is the fiducial one of the
+# data files. Per-bin parameters take one value per bin, in the order of
+# data.redshifts (or one entry per bin, as b1[0], b1[1], ...).
+fiducial_parameters:
+  H0:    67.0
+  omch2: 0.121203
+  ombh2: 0.0219961
+  As:    2.1e-9
+  ns:    0.96
+  b1:    [1.4, 1.6, 1.8, 2.0]
+  b2:    [0.0, 0.0, 0.0, 0.0]
+
 # Relations between parameters that are enforced during the run.
 derived_parameters:
   bG2_coevolution: true

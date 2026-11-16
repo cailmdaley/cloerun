@@ -2,10 +2,10 @@
 # information, using the COMET EFT model, with b1 and c0 sampled in the TCM
 # reparametrisation, sampled with nautilus.
 #
-# It is the TCM version of gcspectro_pls_nautilus.yaml: with the TCM priors
-# below, `cloerun chain --test` evaluates the same point as there, and gives
-# the same loglike up to the constant sum_z log(Aap * sigma12**2) from the
-# rescaled AM prior of c0 (see sampled_parameters).
+# It is the TCM version of gcspectro_pls_nautilus.yaml: `cloerun chain --test`
+# evaluates the same point as there (see fiducial_parameters), and gives the
+# same loglike up to the constant sum_z log(sigma12**2) from the rescaled AM
+# prior of c0 (see sampled_parameters).
 
 output:
   # Path to the directory where the chain will be written, relative to the
@@ -106,23 +106,23 @@ sampled_parameters:
   As:    {dist: flat, min: 1.05e-9, max: 2.95e-9}
   ns:    {dist: norm, loc: 0.96, scale: 0.042}
   # TCM parameters: the priors of gcspectro_pls_nautilus.yaml multiplied, bin
-  # by bin, by Aap**n * sigma12**m at the cosmology of its --test point (the
-  # prior medians): limits of a flat prior, loc and scale of an AM one.
+  # by bin, by Aap**n * sigma12**m at the fiducial cosmology of the data,
+  # where Aap = 1: limits of a flat prior, loc and scale of an AM one.
   b1:
-    1.0:  {dist: flat, min: 0.12461177, max: 1.9937883}
-    1.2:  {dist: flat, min: 0.11418445, max: 1.8269512}
-    1.4:  {dist: flat, min: 0.10523857, max: 1.6838171}
-    1.65: {dist: flat, min: 0.095744554, max: 1.5319129}
+    1.0:  {dist: flat, min: 0.12490891, max: 1.9985425}
+    1.2:  {dist: flat, min: 0.11472951, max: 1.8356721}
+    1.4:  {dist: flat, min: 0.10595224, max: 1.6952358}
+    1.65: {dist: flat, min: 0.096591938, max: 1.545471}
   b2:    {dist: flat, min: -5.0, max: 5.0}
   # bG2 cannot be derived from b1 when b1 is a TCM parameter (the relations
   # are applied before the TCM parameters are converted), so it is sampled.
   bG2:   {dist: flat, min: -4.0, max: 4.0}
   bGam3: {dist: AM, loc: 0.0, scale: 5.0}
   c0:
-    1.0:  {dist: AM, loc: 0.0, scale: 62.112374}
-    1.2:  {dist: AM, loc: 0.0, scale: 52.152355}
-    1.4:  {dist: AM, loc: 0.0, scale: 44.300628}
-    1.65: {dist: AM, loc: 0.0, scale: 36.668079}
+    1.0:  {dist: AM, loc: 0.0, scale: 62.408941}
+    1.2:  {dist: AM, loc: 0.0, scale: 52.65144}
+    1.4:  {dist: AM, loc: 0.0, scale: 44.903507}
+    1.65: {dist: AM, loc: 0.0, scale: 37.32001}
   c2:    {dist: AM, loc: 0.0, scale: 250.0}
   c4:    {dist: AM, loc: 0.0, scale: 250.0}
   cnlo:  {dist: AM, loc: 0.0, scale: 500.0}
@@ -131,13 +131,20 @@ sampled_parameters:
   NP22:  {dist: AM, loc: 0.0, scale: 70.0}
 
 # Values of the sampled parameters used by `cloerun chain --test`; the prior
-# median is used for the ones left out. bG2 as given by the coevolution
-# relation at the b1 of the --test point of gcspectro_pls_nautilus.yaml.
+# median is used for the ones left out. The point of gcspectro_pls_nautilus.yaml:
+# b1 is its b1 times sigma12 (Aap = 1 at the fiducial cosmology of the data),
+# bG2 the coevolution relation at its b1. Per-bin parameters take one value
+# per bin, in the order of data.redshifts (or one entry per bin, as b1[0],
+# b1[1], ...).
 fiducial_parameters:
-  bG2[0]: -0.32142857
-  bG2[1]: -0.32142857
-  bG2[2]: -0.32142857
-  bG2[3]: -0.32142857
+  H0:    67.0
+  omch2: 0.121203
+  ombh2: 0.0219961
+  As:    2.1e-9
+  ns:    0.96
+  b1:    [0.69948989, 0.73426885, 0.76285612, 0.7727355]
+  b2:    [0.0, 0.0, 0.0, 0.0]
+  bG2:   [-0.11428571, -0.17142857, -0.22857143, -0.28571429]
 
 # Relations between parameters that are enforced during the run.
 derived_parameters:

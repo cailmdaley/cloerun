@@ -179,6 +179,38 @@ def _normalize_sampled_parameters(sampled_parameters: dict[str, Any], data: Data
     return normalized
 
 
+def _normalize_fiducial_parameters(
+    fiducial_parameters: dict[str, Any], data: DataConfig
+) -> dict[str, Any]:
+    """Expand the per-bin lists of ``fiducial_parameters`` into one entry
+    per bin, ``name[i]``, the names of the sampled parameters.
+
+    Parameters
+    ----------
+    fiducial_parameters: dict[str, Any]
+        The raw ``fiducial_parameters`` section.
+    data: DataConfig
+        The data setup, for the number of bins.
+
+    Returns
+    -------
+    normalized: dict[str, Any]
+        The section with each list replaced by its per-bin entries.
+    """
+    normalized = {}
+    for name, value in fiducial_parameters.items():
+        if not isinstance(value, list):
+            normalized[name] = value
+            continue
+        if len(value) != len(data.redshifts):
+            raise ValueError(
+                f"'fiducial_parameters.{name}' has {len(value)} values, "
+                f"one per bin expected ({len(data.redshifts)})"
+            )
+        normalized.update({f"{name}[{i}]": v for i, v in enumerate(value)})
+    return normalized
+
+
 def _auto_enable_derived_parameters(
     derived_parameters: dict[str, bool],
     fixed_parameters: dict[str, Any],
@@ -479,7 +511,8 @@ class RunConfig:
     fiducial_parameters: dict[str, Any]
         The ``fiducial_parameters`` section: values of the sampled parameters
         at the fiducial point, used with ``fixed_parameters`` by the ``sdv``
-        and ``test`` modes.
+        and ``test`` modes. For the spectroscopic probes, a per-bin list is
+        expanded into one entry per bin, ``name[i]``.
     prune_parameters: bool
         Whether to drop the parameters the likelihood does not read, instead
         of failing on them -- for parameter files shared by several probes.
@@ -565,6 +598,7 @@ class RunConfig:
         if "kind" not in sampler and not sdv:
             raise ValueError("'sampler' section is missing required key 'kind'")
 
+        fiducial_parameters = raw.get("fiducial_parameters", {})
         if raw["probe"]["kind"] in PHOTO_PROBES:
             data = PhotoDataConfig.from_dict(raw["data"], config_dir=config_dir, sdv=sdv)
             _check_photo_sampled_parameters(raw["sampled_parameters"])
@@ -582,6 +616,7 @@ class RunConfig:
             sampled_parameters = _normalize_sampled_parameters(
                 raw["sampled_parameters"], data
             )
+            fiducial_parameters = _normalize_fiducial_parameters(fiducial_parameters, data)
             scale_cuts = (
                 _parse_scale_cuts(raw["scale_cuts"], data) if "scale_cuts" in raw else {}
             )
@@ -604,6 +639,6 @@ class RunConfig:
             constraints=raw.get("constraints", {}),
             derived_parameters=derived_parameters,
             derived_outputs=list(raw.get("derived_outputs", [])),
-            fiducial_parameters=raw.get("fiducial_parameters", {}),
+            fiducial_parameters=fiducial_parameters,
             prune_parameters=bool(raw.get("prune_parameters", False)),
         )
