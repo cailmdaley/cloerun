@@ -69,14 +69,13 @@ def _load_raw_data(cfg: RunConfig) -> dict[str, Any]:
     result: dict[str, Any] = {"GCspectro": {}}
     for i, label in enumerate(data.labels):
         key = ("SPE", "SPE", i, i)
-        # Setting nbar=1.0 as cloelike expects it but it does not affect the 2PCF
-        entry = {"datavec": datavec[key], "covariance": covariance[key], "nbar": 1.0}
+        entry = {"datavec": datavec[key], "covariance": covariance[key]}
         result["GCspectro"][label] = entry
     return result
 
 
 def _build_settings(cfg: RunConfig, h_fid: float) -> dict[str, Any]:
-    """Convert scale cuts from h/Mpc to 1/Mpc, since the likelihood expects the latter.
+    """Convert scale cuts from Mpc/ to Mpc, since the likelihood expects the latter.
 
     Parameters
     ----------
@@ -156,7 +155,7 @@ def build_likelihood(cfg: RunConfig) -> EuclidLikelihood_GCspectro_xils:
 
     AM_priors = extract_AM_priors(cfg.sampled_parameters, cfg.data.labels)
 
-    return EuclidLikelihood_GCspectro_xils(
+    likelihood = EuclidLikelihood_GCspectro_xils(
         data=data,
         settings=settings,
         Background=Background,
@@ -166,6 +165,12 @@ def build_likelihood(cfg: RunConfig) -> EuclidLikelihood_GCspectro_xils:
         num_mocks=cfg.data.num_mocks,
     )
 
+
+    # Not a constructor argument of the likelihood: read back by `loglike`,
+    # which passes it to `loglike_AM` (Jeffreys priors on the analytically
+    # marginalised parameters).
+    likelihood.use_Jeffreys = bool(cfg.probe.get("use_Jeffreys", False))
+    return likelihood
 
 def loglike(likelihood: EuclidLikelihood_GCspectro_xils, parameters: dict[str, Any]) -> float:
     """Evaluate log-likelihood on the given parameters.
@@ -184,7 +189,9 @@ def loglike(likelihood: EuclidLikelihood_GCspectro_xils, parameters: dict[str, A
         The log-likelihood value.
     """
     if likelihood.AM_priors:
-        return likelihood.loglike_AM(parameters)
+        return likelihood.loglike_AM(
+            parameters, use_Jeffreys=getattr(likelihood, "use_Jeffreys", False)
+        )
     return likelihood.loglike(parameters)
 
 

@@ -32,6 +32,7 @@ probe:
     # - EFT (COMET, PBJ)
     # - VDG (COMET)
     rsd_model: EFT
+  use_Jeffreys: False
 
 data:
   # Effective redshifts of the spectroscopic bins.
