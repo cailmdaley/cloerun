@@ -65,3 +65,12 @@ def derived_outputs(likelihood, parameters, names):
 
 def tracked_packages(cfg):
     return []
+
+
+def loglike_batch(likelihood, parameters: dict[str, Any]) -> np.ndarray:
+    theory = np.stack(np.broadcast_arrays(parameters["a"], parameters["b_1"] + parameters["b_2"]))
+    return -0.5 * np.sum((theory - likelihood.data_vector[:, None]) ** 2, axis=0) / SIGMA**2
+
+
+def derived_outputs_batch(likelihood, parameters, names):
+    return derived_outputs(likelihood, parameters, names)

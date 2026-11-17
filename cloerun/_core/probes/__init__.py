@@ -16,6 +16,11 @@ and `use_noise_free_mock(likelihood, fiducial)`, called when the config sets
 each sampler worker. `theory_spectra(likelihood, cfg, parameters)` and
 `write_spectra(path, spectra)` enable the `sdv` mode, and
 `derived_outputs(likelihood, parameters, names)` the `derived_outputs` section.
+`loglike_batch(likelihood, parameters)` and
+`derived_outputs_batch(likelihood, parameters, names)`, with every parameter an
+array over a batch of points, are what a vectorized sampler
+(``sampler.settings.vectorized: true``) calls instead of `loglike` and
+`derived_outputs`.
 An external probe may expose `parse_data(data, config_dir)`, which reads the
 config's ``data`` section in its own layout; its ``scale_cuts`` section is then
 passed to it unparsed.

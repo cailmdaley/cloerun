@@ -184,3 +184,60 @@ def test_external_probe_parses_its_data(tmp_path, monkeypatch):
     assert config.data.directory == tmp_path
     assert config.scale_cuts == {"ell_range": [100, 3000]}
     assert test_loglike(config) == 0.0
+
+
+def test_vectorized_loglike_matches_scalar(tmp_path):
+    loglike = _loglikelihood(tmp_path)
+    a = np.array([-0.9, 0.1, 0.5, 0.7])
+    loglike.config.sampler["settings"]["vectorized"] = True
+    values, derived = loglike({"a": a})
+    loglike.config.sampler["settings"]["vectorized"] = False
+    scalar = np.array([loglike({"a": x}) for x in a])
+    np.testing.assert_allclose(values, scalar[:, 0])
+    np.testing.assert_allclose(derived, scalar[:, 1])
+
+
+def test_vectorized_chain(tmp_path):
+    config = _config(tmp_path)
+    config.sampler["settings"].update(vectorized=True, n_batch=100)
+    chain = run_chain(config)
+    weights = np.exp(chain.logweight - chain.logweight.max())
+    assert np.average(chain.column("a"), weights=weights) == pytest.approx(0.3, abs=0.03)
+    np.testing.assert_allclose(chain.column("a_plus_b1"), chain.column("a"))
+
+
+def test_vectorized_constraint_and_non_finite(tmp_path, monkeypatch, capsys):
+    import toy_probe
+
+    config = _config(tmp_path, constraints={"negative_w0_wa_sum": True})
+    config.sampler["settings"]["vectorized"] = True
+    priors = build_priors({"a": {"dist": "flat", "min": -1.0, "max": 1.0},
+                           "wa": {"dist": "flat", "min": -1.0, "max": 2.0}}, [])
+    loglike = LogLikelihood(
+        config, {"b_1": 0.0, "b_2": 0.0, "h": 0.7, "omch2": 0.12, "w0": -1.0}, priors.layout,
+        data_vector=np.array([0.5, 0.0]),
+    )
+    batch = toy_probe.loglike_batch
+
+    def nan_at_second(likelihood, parameters):
+        values = batch(likelihood, parameters)
+        values[1] = np.nan
+        return values
+
+    monkeypatch.setattr(toy_probe, "loglike_batch", nan_at_second)
+    # The third point has w0 + wa > 0.
+    values, derived = loglike({"a": np.array([0.5, 0.4, 0.3, 0.4]),
+                               "wa": np.array([0.0, 0.5, 1.5, 0.9])})
+    np.testing.assert_allclose(values, [0.0, -np.inf, -np.inf, -0.5])
+    np.testing.assert_allclose(derived, [0.5, np.nan, np.nan, 0.4])
+    assert "1 non-finite values in a batch of 4" in capsys.readouterr().err
+
+
+def test_vectorized_needs_loglike_batch(tmp_path, monkeypatch):
+    import toy_probe
+
+    monkeypatch.delattr(toy_probe, "loglike_batch")
+    config = _config(tmp_path)
+    config.sampler["settings"]["vectorized"] = True
+    with pytest.raises(ValueError, match="has no loglike_batch"):
+        run_chain(config)
