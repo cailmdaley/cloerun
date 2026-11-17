@@ -3,6 +3,7 @@ import pickle
 
 import numpy as np
 import pytest
+import yaml
 
 pytest.importorskip("nautilus")
 
@@ -161,3 +162,25 @@ def test_external_probe_by_dotted_path(tmp_path, monkeypatch):
     assert test_loglike(config) == 0.0
     with pytest.raises(KeyError, match="Unknown probe kind 'nope'"):
         loader.load_probe("nope")
+
+
+def test_external_probe_parses_its_data(tmp_path, monkeypatch):
+    package = tmp_path / "external_data"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "probe.py").write_text(
+        "from types import SimpleNamespace\n"
+        "from toy_probe import *  # noqa: F401,F403\n\n\n"
+        "def parse_data(data, config_dir):\n"
+        "    return SimpleNamespace(num_mocks=data['first'], directory=config_dir)\n"
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    raw = yaml.safe_load(_config(tmp_path).raw_text)
+    raw["probe"] = {"kind": "external_data.probe"}
+    # Neither redshifts nor covariance: the spectroscopic layout would refuse it.
+    raw["data"] = {"first": 0.3}
+    raw["scale_cuts"] = {"ell_range": [100, 3000]}
+    config = RunConfig.from_dict(raw, tmp_path)
+    assert config.data.directory == tmp_path
+    assert config.scale_cuts == {"ell_range": [100, 3000]}
+    assert test_loglike(config) == 0.0

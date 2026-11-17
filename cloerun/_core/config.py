@@ -8,7 +8,7 @@ from typing import Any, Optional
 
 import yaml
 
-from cloerun._core.loader import DERIVED_PARAMETERS, PHOTO_PROBES
+from cloerun._core.loader import DERIVED_PARAMETERS, PHOTO_PROBES, PROBES, load_probe
 
 REQUIRED_SECTIONS = (
     "probe", "data", "fixed_parameters", "sampled_parameters", "sampler", "output",
@@ -482,11 +482,14 @@ class RunConfig:
         The raw ``probe`` section of the config yaml file.
     data: DataConfig or PhotoDataConfig
         The resolved ``data`` section of the config yaml file, in the
-        spectroscopic or photometric layout depending on ``probe.kind``.
+        spectroscopic or photometric layout depending on ``probe.kind``, or
+        as returned by the ``parse_data(data, config_dir)`` of an external
+        probe module that has one.
     scale_cuts: dict[str, Any]
         The ``scale_cuts`` section of the config yaml file: re-keyed from
-        redshift value to redshift label for the spectroscopic probes, or
-        with parsed ``overrides`` keys for the photometric ones.
+        redshift value to redshift label for the spectroscopic probes, with
+        parsed ``overrides`` keys for the photometric ones, or as written for
+        an external probe with ``parse_data``.
     sampled_parameters: dict[str, Any]
         The ``sampled_parameters`` section of the config yaml file, processed
         to include per-bin entries (spectroscopic probes). Photometric
@@ -599,7 +602,14 @@ class RunConfig:
             raise ValueError("'sampler' section is missing required key 'kind'")
 
         fiducial_parameters = raw.get("fiducial_parameters", {})
-        if raw["probe"]["kind"] in PHOTO_PROBES:
+        kind = raw["probe"]["kind"]
+        external = None if kind in PROBES else load_probe(kind)
+        if hasattr(external, "parse_data"):
+            # An external probe reads its own data and scale-cut sections.
+            data = external.parse_data(raw["data"], config_dir)
+            sampled_parameters = raw["sampled_parameters"]
+            scale_cuts = raw.get("scale_cuts", {})
+        elif kind in PHOTO_PROBES:
             data = PhotoDataConfig.from_dict(raw["data"], config_dir=config_dir, sdv=sdv)
             _check_photo_sampled_parameters(raw["sampled_parameters"])
             sampled_parameters = raw["sampled_parameters"]

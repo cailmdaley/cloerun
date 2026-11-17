@@ -16,4 +16,7 @@ and `use_noise_free_mock(likelihood, fiducial)`, called when the config sets
 each sampler worker. `theory_spectra(likelihood, cfg, parameters)` and
 `write_spectra(path, spectra)` enable the `sdv` mode, and
 `derived_outputs(likelihood, parameters, names)` the `derived_outputs` section.
+An external probe may expose `parse_data(data, config_dir)`, which reads the
+config's ``data`` section in its own layout; its ``scale_cuts`` section is then
+passed to it unparsed.
 """
