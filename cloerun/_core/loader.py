@@ -30,15 +30,21 @@ CONSTRAINTS: dict[str, str] = {
     "negative_w0_wa_sum": "cloerun._core.constraints:w0_wa_negative",
 }
 
-DERIVED_PARAMETERS: dict[str, dict[str, str]] = {
+# "trigger": auto-enabled when this parameter is in the config.
+# "inputs", "output": parameters read and set by a bias relation, checked
+# against the sampled and TCM parameters by the config.
+DERIVED_PARAMETERS: dict[str, dict[str, Any]] = {
     "bG2_coevolution": {
         "path": "cloerun._core.derived_parameters:bG2_coevolution",
+        "inputs": ["b1"], "output": "bG2",
     },
     "bG2_excursion_set": {
         "path": "cloerun._core.derived_parameters:bG2_excursion_set",
+        "inputs": ["b1"], "output": "bG2",
     },
     "bGam3_coevolution": {
         "path": "cloerun._core.derived_parameters:bGam3_coevolution",
+        "inputs": ["b1", "bG2"], "output": "bGam3",
     },
     "H0_from_h": {
         "path": "cloerun._core.derived_parameters:H0_from_h", "trigger": "h",
@@ -150,9 +156,11 @@ def load_perturbations(name: str):
     Parameters
     ----------
     name: str
-        Linear perturbations name, i.e. the config's ``probe.background`` for
-        the spectroscopic probes (same as the background, as they are tied
-        together) or ``probe.linear_perturbations`` for the photometric ones.
+        Linear perturbations name, i.e. the config's ``probe.perturbations``
+        for the spectroscopic probes (defaulting to ``probe.background``; the
+        two are independently selectable, e.g. ``background: CAMB`` with
+        ``perturbations: HMcode2020Emu``) or ``probe.linear_perturbations``
+        for the photometric ones.
 
     Returns
     -------
