@@ -96,14 +96,18 @@ class LogLikelihood:
                 load_derived_parameter(name)(parameters)
         return parameters
 
-    def __call__(self, flat_sample: dict[str, float]):
-        """Log-likelihood of one flat sampler point.
+    def __call__(self, flat_sample: dict[str, Any]):
+        """Log-likelihood of one flat sampler point, or of a batch of them
+        when the sampler is vectorized (``sampler.settings.vectorized``).
 
         Returns
         -------
         loglike: float or tuple
-            The log-likelihood, followed by the ``derived_outputs`` if any.
+            The log-likelihood, followed by the ``derived_outputs`` if any;
+            arrays over the batch when vectorized.
         """
+        if self.config.sampler.get("settings", {}).get("vectorized", False):
+            return self.batch(flat_sample)
         derived_names = self.config.derived_outputs
         failed = (-np.inf, *[np.nan] * len(derived_names)) if derived_names else -np.inf
         parameters = self.parameters(flat_sample)
@@ -124,6 +128,35 @@ class LogLikelihood:
             return loglike
         derived = self.probe.derived_outputs(self.likelihood, parameters, derived_names)
         return (loglike, *derived)
+
+    def batch(self, flat_sample: dict[str, np.ndarray]):
+        """Log-likelihood of a batch of flat sampler points, given as one
+        array per parameter, through the probe's ``loglike_batch`` (and
+        ``derived_outputs_batch``). Points failing a constraint or with a
+        non-finite log-likelihood get ``-inf`` (and NaN derived outputs).
+
+        Returns
+        -------
+        loglike: np.ndarray or tuple
+            The log-likelihood of each point, followed by one array per
+            ``derived_outputs`` if any.
+        """
+        derived_names = self.config.derived_outputs
+        parameters = self.parameters(flat_sample)
+        ok = np.ones(len(next(iter(flat_sample.values()))), bool)
+        for name, enabled in self.config.constraints.items():
+            if enabled:
+                ok &= np.asarray(load_constraint(name)(parameters), bool)
+        loglike = np.asarray(self.probe.loglike_batch(self.likelihood, parameters), float)
+        if not np.isfinite(loglike).all():
+            print(f"[loglike] {np.sum(~np.isfinite(loglike))} non-finite values in a batch "
+                  f"of {len(loglike)}", file=sys.stderr, flush=True)
+        ok &= np.isfinite(loglike)
+        loglike = np.where(ok, loglike, -np.inf)
+        if not derived_names:
+            return loglike
+        derived = self.probe.derived_outputs_batch(self.likelihood, parameters, derived_names)
+        return (loglike, *[np.where(ok, np.asarray(d, float), np.nan) for d in derived])
 
 
 def _fiducial_point(
@@ -198,6 +231,12 @@ class Setup:
         loglike: LogLikelihood
         priors: Priors
         """
+        vectorized = self.config.sampler.get("settings", {}).get("vectorized", False)
+        if vectorized and not hasattr(self.probe, "loglike_batch"):
+            raise ValueError(
+                f"Probe '{self.config.probe['kind']}' has no loglike_batch: it cannot "
+                "run with 'sampler.settings.vectorized: true'"
+            )
         noise_free_mock = getattr(self.config.data, "noise_free_mock", False)
         if getattr(self.config.data, "cells", "") is None and not noise_free_mock:
             raise ValueError(
