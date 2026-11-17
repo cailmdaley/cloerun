@@ -5,7 +5,8 @@ Available: `gcspectro_pls`, `gcspectro_xils`, `gcspectro_bao`, `gcspectro_pls_ba
 
 A new probe module must expose `obs_labels(cfg)`, `build_likelihood(cfg)`,
 `vector_parameter_names(likelihood)`, `loglike(likelihood, parameters)`,
-`tracked_packages(cfg)`, and be registered in `cloerun._core.loader.PROBES`.
+`tracked_packages(cfg)`, and be registered in `cloerun._core.loader.PROBES`
+or named in ``probe.kind`` by its dotted path (an external probe module).
 
 It may also expose `parameter_names(likelihood)`, the parameter names the
 likelihood reads, which enables the `{i}` templates of `cloerun._core.templates`,

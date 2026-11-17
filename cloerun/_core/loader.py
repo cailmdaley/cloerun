@@ -116,18 +116,22 @@ def load_probe(kind: str):
     Parameters
     ----------
     kind: str
-        Probe name, to be specified in the config's ``probe.kind``.
+        Probe name, to be specified in the config's ``probe.kind``: a
+        registered name, or the dotted path of an external probe module.
 
     Returns
     -------
     probe: module
         The specified probe module.
     """
-    if kind not in PROBES:
-        raise KeyError(
-            f"Unknown probe kind '{kind}'. Registered probes: {sorted(PROBES)}"
-        )
-    return load_from_path(PROBES[kind])
+    if kind in PROBES:
+        return load_from_path(PROBES[kind])
+    if "." in kind:
+        return load_from_path(kind)
+    raise KeyError(
+        f"Unknown probe kind '{kind}'. Registered probes: {sorted(PROBES)}, "
+        "or give the dotted path of a probe module"
+    )
 
 
 def load_background(name: str):

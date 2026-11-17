@@ -148,3 +148,16 @@ def test_sdv_needs_a_probe_that_writes_spectra(tmp_path, monkeypatch):
     monkeypatch.delattr(toy_probe, "theory_spectra")
     with pytest.raises(ValueError, match="cannot write a synthetic data vector"):
         write_sdv(_config(tmp_path))
+
+
+def test_external_probe_by_dotted_path(tmp_path, monkeypatch):
+    package = tmp_path / "external"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "probe.py").write_text("from toy_probe import *  # noqa: F401,F403\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    config = _config(tmp_path)
+    config.probe = {"kind": "external.probe"}
+    assert test_loglike(config) == 0.0
+    with pytest.raises(KeyError, match="Unknown probe kind 'nope'"):
+        loader.load_probe("nope")
