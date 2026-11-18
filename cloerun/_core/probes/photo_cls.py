@@ -1,7 +1,10 @@
 """Wrapper for the angular power spectrum likelihoods of
 `cloelike.EuclidLikelihood_photo_Cls`: cosmic shear (``WL``), photometric
 galaxy clustering (``GCph``), galaxy-galaxy lensing (``GGL``) and their
-combinations ``2x2pt`` (GGL + GCph) and ``3x2pt`` (WL + GGL + GCph)."""
+combinations ``2x2pt`` (GGL + GCph) and ``3x2pt`` (WL + GGL + GCph); and of
+`cloelike.EuclidLikelihood_CMBLensingCross`: CMB lensing x shear
+(``CMBLxWL``), x positions (``CMBLxGC``), both (``CMBLx``) and ``5x2pt``
+(both + 3x2pt)."""
 
 from __future__ import annotations
 
@@ -21,6 +24,13 @@ from cloelike.EuclidLikelihood_photo_Cls import (
     EuclidLikelihood_WL,
 )
 
+from cloelike.EuclidLikelihood_CMBLensingCross import (
+    EuclidLikelihood_5x2pt,
+    EuclidLikelihood_CMBLx,
+    EuclidLikelihood_CMBLxGC,
+    EuclidLikelihood_CMBLxWL,
+)
+
 from cloerun._core.config import PHOTO_BLOCKS, RunConfig
 from cloerun._core.loader import (
     load_background,
@@ -34,16 +44,24 @@ _LIKELIHOODS = {
     "GGL": EuclidLikelihood_GGL,
     "2x2pt": EuclidLikelihood_2x2pt,
     "3x2pt": EuclidLikelihood_3x2pt,
+    "CMBLxWL": EuclidLikelihood_CMBLxWL,
+    "CMBLxGC": EuclidLikelihood_CMBLxGC,
+    "CMBLx": EuclidLikelihood_CMBLx,
+    "5x2pt": EuclidLikelihood_5x2pt,
 }
 
 # Blocks of each probe, in the order cloelike concatenates them in the data
-# vector (and so in the covariance): WL, GGL, GCph.
+# vector (and so in the covariance): CMBLxWL, CMBLxGC, WL, GGL, GCph.
 _BLOCKS = {
     "WL": ("WL",),
     "GCph": ("GCph",),
     "GGL": ("GGL",),
     "2x2pt": ("GGL", "GCph"),
     "3x2pt": ("WL", "GGL", "GCph"),
+    "CMBLxWL": ("CMBLxWL",),
+    "CMBLxGC": ("CMBLxGC",),
+    "CMBLx": ("CMBLxWL", "CMBLxGC"),
+    "5x2pt": ("CMBLxWL", "CMBLxGC", "WL", "GGL", "GCph"),
 }
 
 # Sampled parameters each baryonic boost reads, passed as `baryon_kwargs`.
@@ -159,6 +177,8 @@ def _data_keys(kind: str, n_pos: int, n_she: int) -> list[tuple]:
         "WL": [(i, j) for i in range(1, n_she + 1) for j in range(i, n_she + 1)],
         "GGL": [(i, j) for i in range(1, n_pos + 1) for j in range(1, n_she + 1)],
         "GCph": [(i, j) for i in range(1, n_pos + 1) for j in range(i, n_pos + 1)],
+        "CMBLxWL": [(1, j) for j in range(1, n_she + 1)],
+        "CMBLxGC": [(1, i) for i in range(1, n_pos + 1)],
     }
     return [(*PHOTO_BLOCKS[block], i, j) for block in _BLOCKS[kind] for i, j in pairs[block]]
 
@@ -183,7 +203,8 @@ def _template_cells(kind: str, n_pos: int, n_she: int, n_ell: int) -> dict[tuple
     cells: dict[tuple, np.ndarray]
     """
     # Spin-2 fields carry an E/B axis: (E, B) x (E, B) for WL, (E, B) for GGL.
-    shapes = {("SHE", "SHE"): (1, 1, n_ell), ("POS", "SHE"): (1, n_ell), ("POS", "POS"): (n_ell,)}
+    shapes = {("SHE", "SHE"): (1, 1, n_ell), ("POS", "SHE"): (1, n_ell), ("POS", "POS"): (n_ell,),
+              ("CMBL", "SHE"): (1, n_ell), ("CMBL", "POS"): (n_ell,)}
     return {key: np.zeros(shapes[key[:2]]) for key in _data_keys(kind, n_pos, n_she)}
 
 
@@ -207,6 +228,8 @@ def _block_sizes(n_pos: int, n_she: int, n_ell: int) -> dict[str, int]:
         "WL": n_she * (n_she + 1) // 2 * n_ell,
         "GGL": n_pos * n_she * n_ell,
         "GCph": n_pos * (n_pos + 1) // 2 * n_ell,
+        "CMBLxWL": n_she * n_ell,
+        "CMBLxGC": n_pos * n_ell,
     }
 
 
@@ -251,7 +274,8 @@ def _select_covariance(
     ----------
     covariance: np.ndarray
         Covariance of either exactly the probe's blocks, or of the full 3x2pt
-        data vector (blocks ordered WL, GGL, GCph).
+        (blocks ordered WL, GGL, GCph) or 5x2pt (CMBLxWL, CMBLxGC, WL, GGL,
+        GCph) data vector.
     kind: str
         Probe kind.
     sizes: dict[str, int]
@@ -262,17 +286,22 @@ def _select_covariance(
     covariance: np.ndarray
     """
     n_probe = sum(sizes[block] for block in _BLOCKS[kind])
-    n_full = sum(sizes[block] for block in _BLOCKS["3x2pt"])
     if covariance.shape == (n_probe, n_probe):
         return covariance
-    if covariance.shape != (n_full, n_full):
+    full = next(
+        (_BLOCKS[f] for f in ("3x2pt", "5x2pt")
+         if covariance.shape[0] == sum(sizes[block] for block in _BLOCKS[f])
+         and set(_BLOCKS[kind]) <= set(_BLOCKS[f])),
+        None,
+    )
+    if full is None:
         raise ValueError(
             f"Covariance of shape {covariance.shape} matches neither the "
-            f"{kind} data vector ({n_probe}) nor the 3x2pt one ({n_full})"
+            f"{kind} data vector ({n_probe}) nor a full 3x2pt or 5x2pt one"
         )
     start = 0
     indices = []
-    for block in _BLOCKS["3x2pt"]:
+    for block in full:
         if block in _BLOCKS[kind]:
             indices.append(np.arange(start, start + sizes[block]))
         start += sizes[block]

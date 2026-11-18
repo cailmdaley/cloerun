@@ -86,6 +86,8 @@ PHOTO_BLOCKS = {
     "WL": ("SHE", "SHE"),
     "GGL": ("POS", "SHE"),
     "GCph": ("POS", "POS"),
+    "CMBLxWL": ("CMBL", "SHE"),
+    "CMBLxGC": ("CMBL", "POS"),
 }
 
 
