@@ -74,6 +74,7 @@ _PERTURBATIONS_PACKAGES = {
     "CAMB": "camb",
     "HMcode2020Emu": "HMcode2020Emu",
     "EE2": "euclidemu2",
+    "CosmoPowerJAXTraced": "cosmopower-jax",
 }
 
 

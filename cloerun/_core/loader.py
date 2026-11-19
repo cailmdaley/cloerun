@@ -68,17 +68,20 @@ DERIVED_PARAMETERS: dict[str, dict[str, Any]] = {
 
 BACKGROUNDS: dict[str, str] = {
     "CAMB": "cloelib.cosmology.camb_cosmology:CAMBBackground",
+    "CosmoPowerJAXTraced": "cloelib.cosmology.cosmopower_jax_traced:TracedBackground",
 }
 
 PERTURBATIONS: dict[str, str] = {
     "CAMB": "cloelib.cosmology.camb_cosmology:CAMBLinearPerturbations",
     "HMcode2020Emu": "cloelib.cosmology.HMcode2020Emu_cosmology:HMemuLinearPerturbations",
+    "CosmoPowerJAXTraced": "cloelib.cosmology.cosmopower_jax_traced:TracedLinearPerturbations",
 }
 
 NONLINEAR_PERTURBATIONS: dict[str, str] = {
     "CAMB": "cloelib.cosmology.camb_cosmology:CAMBNonLinearPerturbations",
     "HMcode2020Emu": "cloelib.cosmology.HMcode2020Emu_cosmology:HMemuNonLinearPerturbations",
     "EE2": "cloelib.cosmology.EE2_cosmology:EE2NonLinearPerturbations",
+    "CosmoPowerJAXTraced": "cloelib.cosmology.cosmopower_jax_traced:TracedNonLinearPerturbations",
 }
 
 BARYON_BOOSTS: dict[str, str] = {
