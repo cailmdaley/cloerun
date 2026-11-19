@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 from scipy.integrate import trapezoid
+from scipy.interpolate import Akima1DInterpolator
 
 import euclidlib as el
 
@@ -98,7 +99,8 @@ def obs_labels(cfg: RunConfig) -> list[str]:
 
 def _load_nz(path: str, z_grid: np.ndarray) -> np.ndarray:
     """Read the n(z) of every tomographic bin, normalise them and resample
-    them on ``z_grid``.
+    them on ``z_grid`` by Akima interpolation (zero outside the file's redshifts):
+    a coarse tabulation resampled linearly onto a fine grid flattens every peak.
 
     Parameters
     ----------
@@ -120,7 +122,9 @@ def _load_nz(path: str, z_grid: np.ndarray) -> np.ndarray:
     else:
         table = np.loadtxt(path)
         z, nz = table[:, 0], list(table[:, 1:].T)
-    return np.array([np.interp(z_grid, z, n / trapezoid(n, z)) for n in nz])
+    inside = (z_grid >= z[0]) & (z_grid <= z[-1])
+    return np.array([np.where(inside, Akima1DInterpolator(z, n / trapezoid(n, z))(z_grid), 0.0)
+                     for n in nz])
 
 
 def binning_ells(spec: dict[str, Any]) -> np.ndarray:
@@ -585,6 +589,72 @@ def loglike(likelihood, parameters: dict[str, Any]) -> float:
         The log-likelihood value.
     """
     return float(likelihood.loglike(parameters))
+
+
+def _batched(likelihood, chunk, parameters, name, function):
+    """``function(likelihood, point)`` over a batch: ``parameters`` maps each name to a scalar
+    or to an array over the batch. The arrays are the traced inputs of one ``jax.jit`` of
+    ``jax.vmap(function)`` over ``chunk`` points, compiled once per set of batched names and
+    scalar values; the batch is padded to whole chunks (with its last point) and evaluated one
+    chunk per call, so every batch size shares the compilation."""
+    import jax
+    import jax.numpy as jnp
+
+    batched = sorted(k for k, v in parameters.items() if np.ndim(v) > 0)
+    fixed = {k: v for k, v in parameters.items() if k not in batched}
+    key = (name, tuple(batched), tuple(sorted((k, repr(v)) for k, v in fixed.items())))
+    compiled = likelihood.__dict__.setdefault("_batched_functions", {})
+    if key not in compiled:
+        compiled[key] = jax.jit(jax.vmap(lambda values: function(likelihood, {**fixed, **values})))
+    values = {k: np.asarray(parameters[k], float) for k in batched}
+    n = len(next(iter(values.values())))
+    values = {k: np.concatenate([v, np.repeat(v[-1:], (-n) % chunk)]) for k, v in values.items()}
+    out = [compiled[key]({k: jnp.asarray(v[i:i + chunk]) for k, v in values.items()})
+           for i in range(0, n + (-n) % chunk, chunk)]
+    return jax.tree_util.tree_map(lambda *o: np.concatenate(o)[:n], *out)
+
+
+def _point(likelihood, parameters):
+    background, _, nlp = likelihood._get_perturbations(parameters)
+    sigma8_0 = nlp.sigma8_0()
+    return {"loglike": likelihood.loglike(parameters), "sigma8_0": sigma8_0,
+            "S8": sigma8_0 * (background.Omega_m(0.0) / 0.3) ** 0.5}
+
+
+def loglike_batch(likelihood, parameters: dict[str, Any]) -> np.ndarray:
+    """Log-likelihood of a batch of points (``parameters``: scalars, or arrays over the
+    batch), as one compiled, vectorised evaluation that also gives the derived outputs (kept
+    for `derived_outputs_batch` of the same ``parameters``); the likelihood must trace under
+    JAX (e.g. the ``CosmoPowerJAXTraced`` backends). ``probe.settings.batch_chunk`` (default
+    1) is the number of points evaluated at once.
+
+    Returns
+    -------
+    loglike: np.ndarray
+    """
+    chunk = likelihood.settings.get("batch_chunk", 1)
+    values = _batched(likelihood, chunk, parameters, "point", _point)
+    likelihood._batch_derived = (parameters, values)
+    return values["loglike"]
+
+
+def derived_outputs_batch(likelihood, parameters: dict[str, Any], names: list[str]) -> list:
+    """`derived_outputs` over a batch: those `loglike_batch` computed for the same
+    ``parameters``, else evaluated as it does.
+
+    Returns
+    -------
+    values: list[np.ndarray]
+    """
+    unknown = [name for name in names if name not in DERIVED_OUTPUTS]
+    if unknown:
+        raise ValueError(
+            f"Unknown 'derived_outputs' {unknown}; available: {list(DERIVED_OUTPUTS)}"
+        )
+    kept = getattr(likelihood, "_batch_derived", None)
+    if kept is None or kept[0] is not parameters:
+        loglike_batch(likelihood, parameters)
+    return [likelihood._batch_derived[1][name] for name in names]
 
 
 def vector_parameter_names(likelihood) -> set[str]:
