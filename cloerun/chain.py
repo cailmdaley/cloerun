@@ -19,6 +19,7 @@ from cloerun._core.config import RunConfig
 from cloerun._core.loader import load_sampler
 from cloerun._core.setup import prepare
 from cloerun._core.versions import write_config_with_versions
+from cloerun._core.workers import use_threads
 from cloerun.campaign import add_run_arguments, load_runs, run_options
 
 __all__ = ["Chain", "run_chain", "test_loglike"]
@@ -37,6 +38,7 @@ def run_chain(config: RunConfig) -> Chain:
     chain: Chain
         The sampled chain, also saved to the output directory of the config.
     """
+    use_threads(config.sampler.get("threads"))
     setup = prepare(config)
     loglike, priors = setup.loglikelihood()
     sampler = load_sampler(config.sampler["kind"])

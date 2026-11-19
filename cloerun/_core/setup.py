@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from cloerun._core.config import RunConfig
+from cloerun._core.workers import pin
 from cloerun._core.parameters import build_parameter_dict_for_loglike
 from cloerun._core.priors import ParameterLayout, Priors, build_priors
 from cloerun._core.templates import expand_bin_templates, prune_unused
@@ -70,6 +71,7 @@ class LogLikelihood:
     def likelihood(self):
         """The likelihood instance, built on first use."""
         if self._likelihood is None:
+            pin(self.config.sampler.get("threads"))
             self._likelihood = self.probe.build_likelihood(self.config)
             if self.data_vector is not None:
                 self.probe.set_data_vector_masked(self._likelihood, self.data_vector)
