@@ -29,10 +29,14 @@ def use_threads(threads: int | None) -> None:
 
 
 def pin(threads: int | None) -> None:
-    """Pin the k-th pool worker to its own ``threads`` cores (no-op outside a pool)."""
+    """Pin the k-th pool worker, every thread of it, to its own ``threads`` cores (no-op outside
+    a pool)."""
     worker = multiprocessing.current_process()._identity
     if threads is None or not worker:
         return
     cores = sorted(os.sched_getaffinity(0))
     first = (worker[-1] - 1) * threads % len(cores)
-    os.sched_setaffinity(0, cores[first:first + threads])
+    # Every thread of the process: those JAX started at import (its compute pool among them)
+    # keep the affinity they were created with.
+    for thread in os.listdir("/proc/self/task"):
+        os.sched_setaffinity(int(thread), cores[first:first + threads])
