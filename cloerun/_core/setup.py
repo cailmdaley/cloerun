@@ -131,6 +131,21 @@ class LogLikelihood:
         derived = self.probe.derived_outputs(self.likelihood, parameters, derived_names)
         return (loglike, *derived)
 
+    def warm(self, flat_sample: dict[str, float]) -> None:
+        """Evaluate one point in this process, before a sampler's pool does: what a first
+        evaluation makes once per machine and keeps in the temporary directory (cloelib's CAMB
+        table at the reference cosmology) is then made here once, while the workers start,
+        rather than by every worker at once.
+
+        Parameters
+        ----------
+        flat_sample: dict[str, float]
+            One flat point, e.g. the prior medians.
+        """
+        if self.config.sampler.get("settings", {}).get("vectorized", False):
+            flat_sample = {name: np.array([value]) for name, value in flat_sample.items()}
+        self(flat_sample)
+
     def batch(self, flat_sample: dict[str, np.ndarray]):
         """Log-likelihood of a batch of flat sampler points, given as one
         array per parameter, through the probe's ``loglike_batch`` (and

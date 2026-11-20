@@ -74,6 +74,8 @@ def run(
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
     prior = _build_nautilus_prior(priors)
     sampler = Sampler(prior, loglike_fn, **sampler_settings)
+    if sampler.pool_l is not None and hasattr(loglike_fn, "warm"):
+        loglike_fn.warm({name: dist.median() for name, dist in priors.distributions.items()})
     sampler.run(**{"verbose": True, **(run_settings or {})})
     if n_derived == 0:
         points, logweight, loglikelihood = sampler.posterior()
