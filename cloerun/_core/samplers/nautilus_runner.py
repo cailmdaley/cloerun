@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 import numpy as np
 from nautilus import Prior, Sampler
+from scipy.special import ndtri
 
 from cloerun._core.priors import Priors
 
@@ -14,9 +15,33 @@ from cloerun._core.priors import Priors
 TRACKED_PACKAGES = ("nautilus-sampler",)
 
 
+class _Prior(Prior):
+    """`nautilus.Prior` whose transform from the unit cube evaluates uniform and Gaussian
+    priors in closed form: nautilus transforms every pool worker's share of a batch separately,
+    and a frozen SciPy distribution's ``isf`` costs tens of microseconds per call, which on a
+    100-worker pool is a tenth of a second per batch."""
+
+    def unit_to_physical(self, points):
+        if self.dimensionality() != points.shape[-1]:
+            raise ValueError('Dimensionality of points does not match prior.')
+        phys_points = np.empty_like(points)
+        for i, dist in enumerate(d for d in self.dists if hasattr(d, "isf")):
+            u = points[..., i]
+            name = getattr(getattr(dist, "dist", None), "name", None)
+            if name == "uniform" and not dist.args:
+                loc, scale = dist.kwds.get("loc", 0.0), dist.kwds.get("scale", 1.0)
+                phys_points[..., i] = loc + scale * u
+            elif name == "norm" and not dist.args:
+                loc, scale = dist.kwds.get("loc", 0.0), dist.kwds.get("scale", 1.0)
+                phys_points[..., i] = loc - scale * ndtri(1 - u)
+            else:
+                phys_points[..., i] = dist.isf(1 - u)
+        return phys_points
+
+
 def _build_nautilus_prior(priors: Priors) -> Prior:
     """Translate a sampler-agnostic `Priors` into a `nautilus.Prior`."""
-    prior = Prior()
+    prior = _Prior()
     for name, dist in priors.distributions.items():
         prior.add_parameter(name, dist=dist)
     return prior
